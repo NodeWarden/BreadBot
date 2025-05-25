@@ -1,71 +1,93 @@
 import os
 import weaviate
+import weaviate.classes as wvc
 import numpy as np
+from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
-from langchain_community.embeddings import HuggingFaceEmbeddings
 
-client = weaviate.Client("http://localhost:8080")
+def main():
+    # Connessione Weaviate v4
+    client = weaviate.connect_to_local()
+    
+    try:
+        if client.is_ready():
+            print("✅ Connessione a Weaviate riuscita!")
+        else:
+            print("❌ Errore di connessione")
+            return
 
-#Creazione della classe dei Chunks:
-class_obj = {
-    "class": "Chunks",
-    "vectorizer": "none",
-    "properties": [
-        {"name": "text", "dataType": ["text"]},
-        {"name": "images", "dataType": ["text[]"]},
-        {"name": "source", "dataType": ["text"]},
-        {"name": "page", "dataType": ["int"]},
-        {"name": "metadata", "dataType": ["text"]},
-    ]
-}
-
-if not client.schema.exists("Chunks"):
-    client.schema.create_class(class_obj)
-    print("✅ Classe 'Chunks' creata con successo.")
-else:
-    print("⚠️ Classe 'Chunks' già esistente. Nessuna azione necessaria.")
-
-if client.is_ready():
-    print("✅ Connessione a Weaviate riuscita correttamente!")
-else:
-    print("❌ Errore di connessione a Weaviate. Verifica che il server sia in esecuzione.")
-
-
-base_dir =  "/out"
-model_name = "all-MiniLM-L6-v2"
-embeddings = HuggingFaceEmbeddings(model_name=model_name)
-
-for folder_name in os.listdir(base_dir):
-    folder_path = os.path.join(base_dir, folder_name)
-    embeddings_dir = os.path.join(folder_path, "embeddings")
-    if not (os.path.isdir(embeddings_dir) and os.path.exists(os.path.join(embeddings_dir, "index.faiss"))):
-        continue
-    print(f"⏳ Caricamento da: {folder_name}")
-
-    # Carica il database vettoriale FAISS
-    vector_store = FAISS.load_local(embeddings_dir, embeddings)
-    doc_ids = list(vector_store.index_to_docstore_id.values())
-    docs = [vector_store.docstore.__dict__[doc_id] for doc_id in doc_ids]
-    # Estrai i vettori uno per doc
-    vectors = [vector_store.index.reconstruct(i) for i in range(vector_store.index.ntotal)]
-
-
-    # Carica batch su Weaviate
-    with client.batch(batch_size=100) as batch:
-        for i, doc in enumerate(docs):
-            # Metadati: immagini, source, pagina
-            data_object = {
-                "text": doc.page_content,
-                "images": doc.metadata.get("images", []),
-                "source": folder_name,
-                "page": doc.metadata.get("page", -1),
-                "metadata": str(doc.metadata)
-            }
-            batch.add_data_object(
-                data_object=data_object,
-                class_name="Chunks",
-                vector=vectors[i].tolist()  # Converti numpy array in lista
+        # Configurazione collection
+        collection_name = "Chunks"
+        if collection_name not in client.collections.list_all():
+            client.collections.create(
+                name=collection_name,
+                properties=[
+                    wvc.config.Property(name="text", data_type=wvc.config.DataType.TEXT),
+                    wvc.config.Property(name="images", data_type=wvc.config.DataType.TEXT_ARRAY),
+                    wvc.config.Property(name="source", data_type=wvc.config.DataType.TEXT),
+                    wvc.config.Property(name="page", data_type=wvc.config.DataType.INT)
+                ],
+                vectorizer_config=wvc.config.Configure.Vectorizer.none()
             )
-    print(f"✅ Caricamento completato di {len(docs)} chunks da: {folder_name}")
+            print(f"✅ Collection '{collection_name}' creata")
+        else:
+            print(f"⚠️ Collection '{collection_name}' esistente")
 
-print("🎉 Tutti i chunks sono stati caricati su Weaviate con successo!")
+        # Configura embeddings
+        model_name = "all-MiniLM-L6-v2"
+        embeddings = HuggingFaceEmbeddings(model_name=model_name)
+
+        # Processa cartelle
+        base_dir = "./out"
+        for folder_name in os.listdir(base_dir):
+            folder_path = os.path.join(base_dir, folder_name)
+            embeddings_dir = os.path.join(folder_path, "embeddings")
+            
+            if not os.path.exists(os.path.join(embeddings_dir, "index.faiss")):
+                continue
+
+            print(f"⏳ Processo: {folder_name}")
+            
+            try:
+                # Carica FAISS con deserializzazione esplicita
+                vector_store = FAISS.load_local(
+                    embeddings_dir, 
+                    embeddings,
+                    allow_dangerous_deserialization=True
+                )
+                
+                # Estrai dati
+                docs = [vector_store.docstore._dict[doc_id] 
+                        for doc_id in vector_store.index_to_docstore_id.values()]
+                
+                vectors = [vector_store.index.reconstruct(i) 
+                          for i in range(vector_store.index.ntotal)]
+
+                # Batch import con configurazione fixed_size
+                with client.batch.fixed_size(batch_size=100) as batch:
+                    for i, doc in enumerate(docs):
+                        batch.add_object(
+                            collection=collection_name,
+                            properties={
+                                "text": doc.page_content,
+                                "images": doc.metadata.get("images", []),
+                                "source": folder_name,
+                                "page": doc.metadata.get("page", -1)
+                            },
+                            vector=vectors[i].tolist()
+                        )
+                
+                print(f"✅ {len(docs)} chunk caricati")
+
+            except Exception as e:
+                print(f"❌ Errore in {folder_name}: {str(e)}")
+                continue
+
+        print("🎉 Operazione completata!")
+
+    finally:
+        client.close()
+        print("🔒 Connessione chiusa")
+
+if __name__ == "__main__":
+    main()
