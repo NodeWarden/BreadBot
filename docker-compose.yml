@@ -32,15 +32,15 @@ services:
     networks:
       - ragnet
 
-  frontend:
-    build:
-      context: ./frontend
-    ports:
-      - "3000:80"
-    depends_on:
-      - backend
-    networks:
-      - ragnet
+  # frontend:
+  #   build:
+  #     context: ./frontend
+  #   ports:
+  #     - "3000:80"
+  #   depends_on:
+  #     - backend
+  #   networks:
+  #     - ragnet
 
 volumes:
   weaviate_data:
