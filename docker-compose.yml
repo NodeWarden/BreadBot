@@ -1,24 +1,50 @@
 version: '3.8'
 
 services:
-  api:
-    build: .
-    env_file: .env
-    ports:
-      - "8000:8000"
-    depends_on:
-      - redis
-      - weaviate
-
-  redis:
-    image: redis:alpine
-    ports:
-      - "6379:6379"
-
   weaviate:
     image: semitechnologies/weaviate:latest
     ports:
-      - "8080:8080"
+      - "8080:8080"     # Espone la porta API di Weaviate
+      - "50051:50051"   # Espone la porta gRPC (opzionale)
     environment:
       - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
       - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+    volumes:
+      - weaviate_data:/var/lib/weaviate   # Volume persistente per il vdb
+    networks:
+      - ragnet
+
+  backend:
+    build:
+      context: ./backend
+    volumes:
+      - ./backend:/app
+      - ./out:/app/out
+    environment:
+      - WEAVIATE_HOST=http://weaviate:8080   # Nome del servizio Docker, non localhost!
+      - API_KEY=${API_KEY}                   # Chiave privata per autenticazione API backend
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY} # Chiave API LLM
+      - LLM_MODEL=mistralai/mistral-7b-instruct:free
+    ports:
+      - "8000:8000"
+    depends_on:
+      - weaviate
+    networks:
+      - ragnet
+
+  frontend:
+    build:
+      context: ./frontend
+    ports:
+      - "3000:80"
+    depends_on:
+      - backend
+    networks:
+      - ragnet
+
+volumes:
+  weaviate_data:
+
+networks:
+  ragnet:
+    driver: bridge
