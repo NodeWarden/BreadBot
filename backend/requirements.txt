@@ -1,5 +1,5 @@
 aiofiles==24.1.0
-aioredis==2.0.1
+#aioredis==2.0.1
 annotated-types==0.7.0
 anyio==4.9.0
 asgiref==3.8.1
@@ -25,6 +25,7 @@ dotenv==0.9.9
 durationpy==0.10
 faiss-cpu==1.11.0
 fastapi==0.115.9
+fastapi-limiter==0.1.6
 ffmpy==0.5.0
 filelock==3.18.0
 flatbuffers==25.2.10
@@ -106,6 +107,7 @@ python-dotenv==1.1.0
 python-multipart==0.0.20
 pytz==2025.2
 PyYAML==6.0.2
+redis==6.2.0
 referencing==0.36.2
 regex==2024.11.6
 requests==2.32.3
@@ -134,6 +136,8 @@ threadpoolctl==3.6.0
 tokenizers==0.21.1
 tomlkit==0.13.2
 torch==2.7.0
+torchaudio==2.7.0
+torchvision==0.22.0
 tqdm==4.67.1
 transformers==4.52.3
 typer==0.15.4
