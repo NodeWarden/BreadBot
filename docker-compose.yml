@@ -1,6 +1,12 @@
 version: '3.8'
 
 services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    networks:
+      - ragnet
   weaviate:
     image: semitechnologies/weaviate:latest
     ports:
@@ -21,14 +27,17 @@ services:
       - ./backend:/app
       - ./out:/app/out
     environment:
-      - WEAVIATE_HOST=http://weaviate:8080   # Nome del servizio Docker, non localhost!
+      - WEAVIATE_HOST=weaviate   # Nome del servizio Docker, non localhost!
+      - WEAVIATE_PORT=8080
       - API_KEY=${API_KEY}                   # Chiave privata per autenticazione API backend
       - OPENROUTER_API_KEY=${OPENROUTER_API_KEY} # Chiave API LLM
       - LLM_MODEL=mistralai/mistral-7b-instruct:free
+      - REDIS_URL=redis://redis:6379
     ports:
       - "8000:8000"
     depends_on:
       - weaviate
+      - redis
     networks:
       - ragnet
 
