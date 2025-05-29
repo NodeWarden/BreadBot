@@ -1,0 +1,46 @@
+{
+  "answer": "Il transistor bipolare funziona come un dispositivo di amplificazione elettrica che consente di controllare la corrente che scorre attraverso una sezione, nota come collettore, tramite la variazione di una piccola corrente che scorre nella sezione basale. Il transistor bipolare è composto da due tipi di semiconduttori: un semiconduttore di tipo P (positivo) e un semiconduttore di tipo N (negativo). Esistono due tipi di transistor bipolare: il transistor NPN e il transistor PNP. Il transistor NPN è costituito da un emettitore di tipo N, una base di tipo P e un collettore di tipo N, mentre il transistor PNP è composto da un emettitore di tipo P, una base di tipo N e un collettore di tipo P. Il funzionamento del transistor bipolare è basato sulla legge di Shockley, che descrive il comportamento dei transistor bipolari in termini di corrente di emittente, corrente di base e corrente di collettore. Il transistor bipolare è non lineare, ma la sua non linearità è relativamente piccola e monotona, permettendo una buona linearizzazione.",
+  "chunks": [
+    {
+      "text": "Il confronto tra le variazioni di tensione e i veri dati di amplificazione di piccolo\nsegnale, mostra subito che il modo migliore per apprezzare come si comporterà un\namplificatore, è con l’esame dei dati di amplificazione di piccolo segnale. Proprio\ncome l’uso del beta in cc nascondela non linearità del beta di piccolo segnale, l’uso\ndi variazioni di tensione nasconde la non linearità degli amplificatori veri. Il\ndispositivo FET, come il bipolare, è non lineare, ma è una non linearità relativa-\nmente piccola in quanto è essenzialmente monotono, o è sempre nella stessa\ndirezione. Non lo è la variazione di beta. Come avete visto, il modo di funziona-\nmento Shockley dei FET è molto meno trascendentale di quando non lo sia il\ntransistore bipolare e per questa ragione non necessiterà tanta retroazione per la\nlinearizzazione quanta ne è richiesta per il dispositivo bipolare.\n\nPasso 4",
+      "source": "disp_attiviEnon",
+      "page": 275,
+      "images": [
+        "pagina_275.jpg"
+      ]
+    },
+    {
+      "text": "collaboratori inventarono il transistor a punta di contatto. Questo fu seguito\ndall’invenzione del transistore bipolare e di quello a effetto di campo. Queste\ninvenzioni resero possibile la progettazione del primo calcolatore tascabile.",
+      "source": "disp_attiviEnon",
+      "page": 381,
+      "images": [
+        "pagina_381.jpg"
+      ]
+    },
+    {
+      "text": "Uno strumento che non dovrebbe mai mancare an-\nche nel più piccolo laboratorio è il provatransistor,\nperchè consente di stabilire immediatamente se il\ntransistor in nostro possesso risulta efficiente op-\npure difettoso o bruciato.\nSe il nostro provatransistor è efficiente potremo\nleggere il valore Hfe, un dato indispensabile per\ncalcolare i valori delle resistenze di polarizzazione\ncome spiegato nella Lezione N.13.\nPoichè difficilmente troverete un provatransistor dal\nprezzo  economico in un negozio di elettronica, vi\ninsegneremo come autocostruirlo.\nSCHEMA ELETTRICO \nPer poter usare correttamente un qualsiasi stru-\nmento, occorre prima capire come funziona e per\nspiegarvelo iniziamo da uno schema semplificato\ncome quello riportato in fig.463. \nCome già sapete, al Collettore di tutti i transistor ti-\npo NPN dovete collegare il positivo di alimenta-\nzione e ai transistor PNP il negativo di alimenta-\nzione (vedi Lezione N.13, figg.414-415).",
+      "source": "ElettronicaitaIMGS",
+      "page": -1,
+      "images": []
+    },
+    {
+      "text": "fatto che questi valori siano interdipendenti è trascurabile. Come con i dispositivi bipolari la corrente\ndi drain per unità di transconduttanza è relativamente stabile e può essere usata per avvantaggiare sia i\nprogettisti che i tecnici riparatori. (Comunque, ricordate che non è unitaria per i FET). In condizioni\nnormali, l'efficienza di transconduttanza per unità di corrente di questi dispositivi è più verso lo 0,01,\ncon il risultato che hanno significativamente maggiore capacità intrinseca di trattare la potenza\nrispetto ad un dispositivo bipolare che funziona nello stesso modo. Riportate graficamente la tran-\nsconduttanza tipica in funzione della corrente d’uscita oppure una traccia del fattore di efficienza in\nfunzione di questa corrente che sarebbe molto prezioso per chi usa il dispositivo.",
+      "source": "disp_attiviEnon",
+      "page": 484,
+      "images": [
+        "pagina_484.jpg"
+      ]
+    },
+    {
+      "text": "Il transistor è il nome di un semiconduttore utiliz-\nzato in elettronica per amplificare qualsiasi tipo di\nsegnale elettrico, cioè dalla Bassa Frequenza al-\nla Radio Frequenza.\nPer quanti manuali un principiante possa aver let-\nto, difficilmente sarà riuscito a capire come real-\nmente funzioni un transistor perché questo com-\nponente viene descritto in modo troppo teorico e\ncon complesse formule matematiche.\nIn questa Lezione cercheremo di spiegarvi in mo-\ndo completamente diverso e con molti esempi e-\nlementari che cos’è e come funziona questo se-\nmiconduttore chiamato transistor.\nIL TRANSISTOR\nQuesto componente può avere forme e dimensio-\nni diverse (vedi fig.413).\nIn tutti gli schemi elettrici il transistor viene raffi-\ngurato con il simbolo grafico visibile nelle figg.414-\n415, cioè con un cerchio dal quale fuoriescono 3\nterminali contrassegnati dalle lettere E - B - C .\nla lettera E indica l’Emettitore\nla lettera B indica la Base\nla lettera C indica il Collettore",
+      "source": "ElettronicaitaIMGS",
+      "page": -1,
+      "images": []
+    }
+  ],
+  "images": [
+    "pagina_484.jpg",
+    "pagina_275.jpg",
+    "pagina_381.jpg"
+  ]
+}
