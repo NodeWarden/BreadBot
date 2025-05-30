@@ -5,20 +5,34 @@ services:
     image: redis:alpine
     ports:
       - "6379:6379"
+    restart: unless-stopped
     networks:
       - ragnet
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   weaviate:
     image: semitechnologies/weaviate:latest
     ports:
-      - "8080:8080"     # Espone la porta API di Weaviate
-      - "50051:50051"   # Espone la porta gRPC (opzionale)
+      - "8080:8080"
+      - "50051:50051"
+    restart: unless-stopped
     environment:
       - AUTHENTICATION_ANONYMOUS_ACCESS_ENABLED=true
       - PERSISTENCE_DATA_PATH=/var/lib/weaviate
+      - CLUSTER_HOSTNAME=node1
     volumes:
-      - weaviate_data:/var/lib/weaviate   # Volume persistente per il vdb
+      - weaviate_data:/var/lib/weaviate
     networks:
       - ragnet
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://localhost:8080/v1/.well-known/ready"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 
   backend:
     build:
@@ -27,17 +41,20 @@ services:
       - ./backend:/app
       - ./out:/app/out
     environment:
-      - WEAVIATE_HOST=weaviate   # Nome del servizio Docker, non localhost!
+      - WEAVIATE_HOST=weaviate
       - WEAVIATE_PORT=8080
-      - API_KEY=${API_KEY}                   # Chiave privata per autenticazione API backend
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY} # Chiave API LLM
+      - API_KEY=${API_KEY}
+      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
       - LLM_MODEL=mistralai/mistral-7b-instruct:free
       - REDIS_URL=redis://redis:6379
     ports:
       - "8000:8000"
     depends_on:
-      - weaviate
-      - redis
+      weaviate:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    restart: unless-stopped
     networks:
       - ragnet
 
