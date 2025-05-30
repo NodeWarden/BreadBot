@@ -31,19 +31,21 @@ def main():
 
     try:
         # Ottieni o crea la collection Images
-        if "Images" not in client.collections.list_all():
+        if "Images" in client.collections.list_all():
+            print("ℹ️ Collection 'Images' già esistente.")
+            client.collections.delete("Images")
+        else:
             client.collections.create(
                 name="Images",
                 properties=[
                     weaviate.classes.config.Property(name="filename", data_type=weaviate.classes.config.DataType.TEXT),
                     weaviate.classes.config.Property(name="url", data_type=weaviate.classes.config.DataType.TEXT),
                     weaviate.classes.config.Property(name="component", data_type=weaviate.classes.config.DataType.TEXT),
+                    weaviate.classes.config.Property(name="description", data_type=weaviate.classes.config.DataType.TEXT),
                 ],
                 vectorizer_config=weaviate.classes.config.Configure.Vectorizer.none()
             )
             print("✅ Collection 'Images' creata.")
-        else:
-            print("ℹ️ Collection 'Images' già esistente.")
 
         collection = client.collections.get("Images")
 
@@ -71,6 +73,7 @@ def main():
                             "filename": img_name,
                             "url": url,
                             "component": "",  # Aggiungi tag se vuoi
+                            "description": f"Screenshot pagina da {pdf_folder}"
                         },
                         vector=embedding.tolist()
                     )

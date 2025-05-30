@@ -76,7 +76,7 @@ async def generate_answer(context: str, question: str) -> str:
 
     headers = {
         "Authorization": f"Bearer {OPENROUTER_API_KEY}",
-        "HTTP-Referer": "https://github.com/your-repo",
+        "HTTP-Referer": "https://github.com/NodeWarden/BreadBot",
         "X-Title": "RAG System"
     }
 
