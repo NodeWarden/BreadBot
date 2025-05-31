@@ -184,7 +184,7 @@ async def generate_answer(context: str, question: str) -> str:
                     Risposta:"""
                 }],
                 "temperature": 0.3,
-                "max_tokens": 700
+                "max_tokens": 1200
             }
         )
         return response.json()["choices"][0]["message"]["content"].strip()
