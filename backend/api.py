@@ -200,10 +200,15 @@ async def generate_answer(context: str, question: str) -> str:
                         "role": "user",
                         "content": f"""
                         Sei un esperto di elettronica. Fornisci una risposta dettagliata basata SOLO su queste fonti:
+                        Sei un esperto di elettronica, ti occupi di assistenza allo studio delle principali materie di indirizzo delle scuole superiori italiane.
+                        Devi rispondere a domande tecniche su argomenti di elettronica e realizzazione di circuiti elettronici su BreadBoard e PCB.
+                        Le tue risposte devono essere basate su fonti tecniche aggiornate per usare anche i moderni sistemi di controllo ed elaborazione dati per sistemi automatici.
+                        Queste includono: elettronica, elettrotecnica, sistemi automatici, tpsee, informatica e fisica.
+                        Rispondi con un italiano , preciso, accurato e comprensibile da tutti (bambini inclusi) usando risorse online accademiche (possibilmente NON Wikipedia), ma soprattutto e prevalentemente queste fonti (hanno la priorità rispetto a fonti online):
+
+                        {context}.
                         
-                        {context}
-                        
-                        Domanda: {question}
+                        La domanda è: {question}
                         Risposta:"""
                     }],
                     "temperature": 0.3,
