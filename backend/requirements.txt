@@ -5,7 +5,7 @@ uvloop==0.21.0
 weaviate==0.1.2
 weaviate-client==4.14.4
 redis==6.2.0
-pytesseract-0.3.13
+pytesseract==0.3.13
 python-dotenv==1.1.0
 httpx==0.28.1
 httpx-sse==0.4.0

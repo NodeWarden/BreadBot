@@ -4,3 +4,5 @@
 */__pycache__
 out_structured/
 pdf_extractor.log
+backend/scripts/weaviate_cloud_populator.py
+backend/requirements.txt
