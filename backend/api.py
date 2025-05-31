@@ -58,7 +58,7 @@ async def lifespan(app: FastAPI):
             app.weaviate_client = weaviate.connect_to_weaviate_cloud(
                 cluster_url=os.environ["WEAVIATE_URL"],
                 #grpc_url=os.environ.get("WEAVIATE_GRPC_URL"),
-                grpc_port=int(os.environ.get("WEAVIATE_GRPC_CLOUD_PORT", 443)),
+                #grpc_port=int(os.environ.get("WEAVIATE_GRPC_CLOUD_PORT", 443)),
                 auth_credentials=Auth.api_key(os.environ["WEAVIATE_API_KEY"]),
                 additional_config=AdditionalConfig(
                     timeout=Timeout(init=30, query=60, insert=120)
