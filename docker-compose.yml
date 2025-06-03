@@ -38,18 +38,8 @@ services:
     volumes:
       - ./backend:/app
       - ./out:/app/out
-    environment:
-      - WEAVIATE_HOST=weaviate
-      - WEAVIATE_PORT=8080
-      - WEAVIATE_GRPC_PORT=50051
-      - API_KEY=${API_KEY}
-      - OPENROUTER_API_KEY=${OPENROUTER_API_KEY}
-      - LLM_MODEL=mistralai/mistral-7b-instruct:free
-      - REDIS_URL=redis://redis:6379
-      - EMBEDDING_MODEL=sentence-transformers/all-MiniLM-L6-v2
-      - EMBEDDING_MODEL_IMAGE=openai/clip-vit-base-patch32
-      - SITE_URL=https://breadbot-ai.com
-      - ALLOWED_ORIGINS=https://breadbot-ai.com,https://www.breadbot-ai.com,http://localhost:3000
+    env_file:
+      - .env
     ports:
       - "8000:8000"
     depends_on:
