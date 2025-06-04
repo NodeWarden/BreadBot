@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: backend
-          image: europe-west3-docker.pkg.dev/breadbot-ai/breadbot-repo/breadbot-backend:v2
+          image: europe-west3-docker.pkg.dev/breadbot-ai/breadbot-repo/breadbot-backend:v3
           ports:
             - containerPort: 8000
           envFrom:
