@@ -10,12 +10,15 @@ import logging
 
 # Configurazione
 STRUCTURED_DATA_DIR = "./out_structured"
-WEAVIATE_HOST = os.getenv("WEAVIATE_HOST_LOCAL", "localhost")
-WEAVIATE_PORT = int(os.getenv("WEAVIATE_PORT_LOCAL", 8080))
+WEAVIATE_HOST = os.getenv("WEAVIATE_HOST", "localhost")
+WEAVIATE_PORT = int(os.getenv("WEAVIATE_PORT", 8080))
+WEAVIATE_GRPC_PORT = int(os.getenv("WEAVIATE_GRPC_PORT", 50051))
 TEXT_EMBEDDING_MODEL = 'sentence-transformers/all-MiniLM-L6-v2'
 IMAGE_EMBEDDING_MODEL = 'openai/clip-vit-base-patch32'
 CHUNK_SIZE = 1000
 CHUNK_OVERLAP = 150
+# export WEAVIATE_HOST=localhost
+# export WEAVIATE_PORT=8080
 
 logging.basicConfig(
     level=logging.INFO,
@@ -26,13 +29,10 @@ logging.basicConfig(
 def connect_weaviate():
     print(f" Tentativo di connessione a Weaviate: host={WEAVIATE_HOST}, port={WEAVIATE_PORT}")
     try:
-        client = weaviate.connect_to_custom(
-            http_host=WEAVIATE_HOST,
-            http_port=WEAVIATE_PORT,
-            http_secure=False,
-            grpc_host=WEAVIATE_HOST,
-            grpc_port=50051,
-            grpc_secure=False,
+        client = weaviate.connect_to_local(
+            port=WEAVIATE_PORT,
+            grpc_port=WEAVIATE_GRPC_PORT,
+            skip_init_checks=True
         )
         client.is_ready()
         print("✅ Connesso a Weaviate.")

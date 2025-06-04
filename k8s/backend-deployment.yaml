@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: breadbot-backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: breadbot-backend
+  template:
+    metadata:
+      labels:
+        app: breadbot-backend
+    spec:
+      containers:
+        - name: backend
+          image: europe-west3-docker.pkg.dev/breadbot-ai/breadbot-repo/breadbot-backend:v2
+          ports:
+            - containerPort: 8000
+          envFrom:
+            - secretRef:
+                name: breadbot-env
+          resources:
+            requests:
+              cpu: "200m"
+              memory: "1Gi"
+              ephemeral-storage: "2Gi"
+            limits:
+              cpu: "500m"
+              memory: "2Gi"
+              ephemeral-storage: "4Gi"
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: breadbot-backend-service
+  annotations:
+    cloud.google.com/neg: '{"ingress": true}'
+spec:
+  type: ClusterIP
+  selector:
+    app: breadbot-backend
+  ports:
+    - protocol: TCP
+      port: 8000
+      targetPort: 8000
+

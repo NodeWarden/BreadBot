@@ -3,9 +3,11 @@ import asyncio
 import logging
 import time
 import uuid
+import numpy as np
+
 from contextlib import asynccontextmanager
 from typing import List, Optional
-
+import logging
 from fastapi import FastAPI, HTTPException, Query, Cookie, Response
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
@@ -22,19 +24,15 @@ from transformers import CLIPProcessor, CLIPModel
 import torch
 import httpx
 
-# Configurazione logging
-logging.basicConfig(
-    level=logging.INFO,
-    format="%(asctime)s - %(levelname)s - %(message)s",
-    handlers=[logging.StreamHandler()]
-)
+logging.basicConfig(level=logging.INFO)
 
-# Modelli Pydantic
+
+# --- MODELLI PYDANTIC ---
 class RAGChunk(BaseModel):
     text: str
-    source: str
-    page: int
-    images: List[str]
+    source: Optional[str]
+    page: Optional[int]
+    images: List[str] = []
 
 class RAGImageInfo(BaseModel):
     filename: str
@@ -54,24 +52,28 @@ class ChatResponse(BaseModel):
     chunks: List[RAGChunk]
     images: List[RAGImageInfo]
 
+# --- LIFESPAN HANDLER ---
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inizializzazione Weaviate 
+    # Inizializzazione Weaviate
+    # Inizializzazione Weaviate
     try:
         logging.info("🔗 Connessione a Weaviate locale")
         app.weaviate_client = weaviate.WeaviateClient(
             connection_params=ConnectionParams.from_params(
-                http_host=os.getenv("WEAVIATE_HOST", "weaviate-service"),
-                http_port=int(os.getenv("WEAVIATE_PORT", 8080)),
+                http_host=os.getenv("BREADBOT_WEAVIATE_HOST", "weaviate-service"),
+                http_port=int(os.getenv("BREADBOT_WEAVIATE_PORT", 8080)),
                 http_secure=False,
-                grpc_host=os.getenv("WEAVIATE_HOST", "weaviate-service"),
-                grpc_port=int(os.getenv("WEAVIATE_GRPC_PORT", 50051)),
+                grpc_host=os.getenv("BREADBOT_WEAVIATE_HOST", "weaviate-service"),
+                grpc_port=int(os.getenv("BREADBOT_WEAVIATE_GRPC_PORT", 50051)),
                 grpc_secure=False,
             ),
             additional_config=AdditionalConfig(timeout=Timeout(query=45))
         )
         app.weaviate_client.connect()
         logging.info("✅ Connessione Weaviate stabilita")
+
     except Exception as e:
         logging.error(f"❌ Errore connessione Weaviate: {str(e)}")
         raise RuntimeError("Impossibile connettersi a Weaviate") from e
@@ -81,16 +83,18 @@ async def lifespan(app: FastAPI):
         logging.info("🔄 Caricamento modelli di embedding")
         app.text_encoder = SentenceTransformer(os.getenv("EMBEDDING_MODEL", "sentence-transformers/all-MiniLM-L6-v2"))
         app.clip_processor = CLIPProcessor.from_pretrained(os.getenv("EMBEDDING_MODEL_IMAGE", "openai/clip-vit-base-patch32"))
-        app.clip_model = CLIPModel.from_pretrained(os.getenv("EMBEDDING_MODEL_IMAGE", "openai/clip-vit-base-patch32"))
+        app.clip_model = CLIPModel.from_pretrained(os.getenv("EMBEDDING_MODEL_IMAGE", "openai/clip-vit-base-patch16"))
     except Exception as e:
         logging.error(f"❌ Errore caricamento modelli: {str(e)}")
         raise
 
-    # Inizializzazione Redis 
+    # Inizializzazione Redis
+    # Inizializzazione Redis
     try:
         logging.info("🔗 Connessione a Redis")
-        app.redis_client = redis.from_url(os.getenv("REDIS_URL", "redis://redis-service:6379"))
+        app.redis_client = redis.from_url(os.getenv("BREADBOT_REDIS_URL", "redis://redis-service:6379"))
         await FastAPILimiter.init(app.redis_client)
+
     except Exception as e:
         logging.error(f"❌ Errore connessione Redis: {str(e)}")
         raise
@@ -99,11 +103,11 @@ async def lifespan(app: FastAPI):
     app.sessions = {}
     asyncio.create_task(cleanup_sessions(app.sessions))
     yield
-
-    # Cleanup
     logging.info("🚪 Chiusura connessioni")
     await app.redis_client.aclose()
     app.weaviate_client.close()
+
+# --- APP FASTAPI ---
 
 app = FastAPI(
     title="BreadBot AI API",
@@ -112,16 +116,20 @@ app = FastAPI(
     lifespan=lifespan
 )
 
+# --- CORS CONFIG ROBUSTA ---
+
+origins = [origin.strip() for origin in os.getenv("BREADBOT_ALLOWED_ORIGINS", "*").split(",")]
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("ALLOWED_ORIGINS", "*").split(","),
+    allow_origins=origins,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
 )
 
+# --- SESSION CLEANUP ---
+
 async def cleanup_sessions(sessions):
-    """Pulizia sessioni inattive ogni minuto"""
     while True:
         now = time.time()
         expired = [k for k, v in sessions.items() if now - v["last_active"] > 1800]
@@ -130,9 +138,11 @@ async def cleanup_sessions(sessions):
             logging.info(f"🧹 Sessione {k} rimossa")
         await asyncio.sleep(60)
 
+# --- ENDPOINTS ---
+
 @app.get("/query")
 async def query_get(q: str = Query(..., min_length=3, max_length=500)):
-    """Endpoint GET alternativo per domande singole (senza memoria di sessione)."""
+    """Endpoint GET per domande singole (senza memoria di sessione)."""
     try:
         rag_response = await execute_rag_query(q)
         return {
@@ -154,11 +164,8 @@ async def chat_session(
         current_session = session_id if session_id in app.sessions else None
         if not current_session:
             session_id = str(uuid.uuid4())
-            app.sessions[session_id] = {
-                "messages": [],
-                "last_active": time.time()
-            }
-            response.set_cookie("session_id", session_id, httponly=True, max_age=1800)
+            app.sessions[session_id] = {"messages": [], "last_active": time.time()}
+        response.set_cookie("session_id", session_id, httponly=True, max_age=1800)
         app.sessions[session_id]["last_active"] = time.time()
         last_message = next((m for m in reversed(request.messages) if m.role == "user"), None)
         if not last_message:
@@ -174,25 +181,62 @@ async def chat_session(
         logging.error(f"❌ Errore durante la chat: {str(e)}")
         raise HTTPException(500, detail=str(e))
 
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "weaviate": app.weaviate_client.is_ready(),
+        "redis": await app.redis_client.ping(),
+        "sessions_active": len(app.sessions),
+        "version": "2.0.0"
+    }
+
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "message": "BreadBot AI API is running",
+        "version": "2.0.0"
+    }
+
+# --- RAG QUERY CORE ---
+
 async def execute_rag_query(query: str, k: int = 5):
     """Funzione RAG per eseguire query ibride testuali e immagini"""
     try:
-        text_vector = app.text_encoder.encode(query).tolist()
+        # TEXT EMBEDDING (sempre 1D)
+        text_vector = app.text_encoder.encode(query)
+        if isinstance(text_vector, list):
+            text_vector = np.array(text_vector)
+        if hasattr(text_vector, "shape") and len(text_vector.shape) == 2:
+            text_vector = text_vector[0]
+        text_vector = text_vector.tolist()
+
+        # IMAGE EMBEDDING
         inputs = app.clip_processor(text=[query], return_tensors="pt", padding=True)
         with torch.no_grad():
-            image_vector = app.clip_model.get_text_features(**inputs).tolist()
+            image_vector = app.clip_model.get_text_features(**inputs)
+        if hasattr(image_vector, "detach"):
+            image_vector = image_vector.detach().cpu().numpy()
+        if len(image_vector.shape) == 2:
+            image_vector = image_vector[0]
+        image_vector = image_vector.tolist()
+
+        # QUERY WEAVIATE (v4)
         chunks = app.weaviate_client.collections.get("Chunks").query.hybrid(
             query=query,
             vector=text_vector,
             limit=k,
             return_properties=["text", "source", "page", "images"]
         ).objects
+
         images = app.weaviate_client.collections.get("Images").query.hybrid(
             query=query,
             vector=image_vector,
             limit=k,
             return_properties=["filename", "url", "description"]
         ).objects
+
         context = build_context(chunks, images)
         answer = await generate_answer(context, query)
         return {
@@ -206,7 +250,7 @@ async def execute_rag_query(query: str, k: int = 5):
 
 def build_context(chunks, images):
     context = "## Fonti tecniche:\n"
-    context += "\n".join([f"[{chunk.source}] {chunk.text}" for chunk in chunks])
+    context += "\n".join([f"[{chunk.source or 'N/D'}] {chunk.text}" for chunk in chunks])
     context += "\n\n## Immagini rilevanti:\n"
     context += "\n".join([f"- {img.description} ({img.url})" for img in images])
     return context
@@ -247,13 +291,3 @@ Risposta:
     except Exception as e:
         logging.error(f"❌ Errore generazione risposta: {str(e)}")
         return "Impossibile generare una risposta al momento."
-
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "ok",
-        "weaviate": app.weaviate_client.is_ready(),
-        "redis": await app.redis_client.ping(),
-        "sessions_active": len(app.sessions),
-        "version": "2.0.0"
-    }
