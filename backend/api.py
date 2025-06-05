@@ -52,11 +52,14 @@ class ChatResponse(BaseModel):
     chunks: List[RAGChunk]
     images: List[RAGImageInfo]
 
-# --- LIFESPAN HANDLER ---
 
+# --- LOGGING CONFIG ---
+logging.basicConfig(level=logging.INFO)
+
+# --- LIFESPAN HANDLER ---
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Inizializzazione Weaviate
+
     # Inizializzazione Weaviate
     try:
         logging.info("🔗 Connessione a Weaviate locale")
@@ -89,7 +92,6 @@ async def lifespan(app: FastAPI):
         raise
 
     # Inizializzazione Redis
-    # Inizializzazione Redis
     try:
         logging.info("🔗 Connessione a Redis")
         app.redis_client = redis.from_url(os.getenv("BREADBOT_REDIS_URL", "redis://redis-service:6379"))
@@ -107,17 +109,16 @@ async def lifespan(app: FastAPI):
     await app.redis_client.aclose()
     app.weaviate_client.close()
 
-# --- APP FASTAPI ---
 
+# --- APP FASTAPI ---
 app = FastAPI(
     title="BreadBot AI API",
     description="API avanzata per sistema RAG con gestione sessioni",
-    version="2.0.0",
+    version="4.0.0",
     lifespan=lifespan
 )
 
-# --- CORS CONFIG ROBUSTA ---
-
+# --- CORS CONFIG ---
 origins = [origin.strip() for origin in os.getenv("BREADBOT_ALLOWED_ORIGINS", "*").split(",")]
 app.add_middleware(
     CORSMiddleware,
@@ -127,8 +128,11 @@ app.add_middleware(
     allow_headers=["*"]
 )
 
-# --- SESSION CLEANUP ---
 
+
+# --- FUNZIONI DI SVILUPPO ---
+
+# --- SESSION CLEANUP ---
 async def cleanup_sessions(sessions):
     while True:
         now = time.time()
@@ -138,69 +142,53 @@ async def cleanup_sessions(sessions):
             logging.info(f"🧹 Sessione {k} rimossa")
         await asyncio.sleep(60)
 
-# --- ENDPOINTS ---
+# --- FUNZIONE DI BUILD ---
+def build_context(chunks, images):
+    context = "## Fonti tecniche:\n"
+    context += "\n".join([f"[{chunk.properties.get('source', 'N/D')}] {chunk.properties.get('text', '')}" for chunk in chunks])
+    context += "\n\n## Immagini rilevanti:\n"
+    context += "\n".join([f"- {img.properties.get('description', '')} ({img.properties.get('url', '')})" for img in images])
+    return context
 
-@app.get("/query")
-async def query_get(q: str = Query(..., min_length=3, max_length=500)):
-    """Endpoint GET per domande singole (senza memoria di sessione)."""
+# --- GENERA RISPOSTA ---
+async def generate_answer(context: str, question: str) -> str:
     try:
-        rag_response = await execute_rag_query(q)
-        return {
-            "answer": rag_response["answer"],
-            "chunks": [chunk.dict() for chunk in rag_response["chunks"]],
-            "images": [img.dict() for img in rag_response["images"]]
-        }
+        async with httpx.AsyncClient(timeout=30) as client:
+            response = await client.post(
+                "https://openrouter.ai/api/v1/chat/completions",
+                headers={
+                    "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+                    "HTTP-Referer": os.getenv("SITE_URL", "https://breadbot-ai.com"),
+                    "X-Title": "BreadBot AI"
+                },
+                json={
+                    "model": os.getenv("LLM_MODEL", "mistralai/mistral-7b-instruct:free"),
+                    "messages": [{
+                        "role": "user",
+                        "content": f"""
+                    Sei un esperto di elettronica, ti occupi di assistenza allo studio delle principali materie di indirizzo delle scuole superiori italiane.
+                    Devi rispondere a domande tecniche su argomenti di elettronica e realizzazione di circuiti elettronici su BreadBoard e PCB.
+                    Le tue risposte devono essere basate su fonti tecniche aggiornate per usare anche i moderni sistemi di controllo ed elaborazione dati per sistemi automatici.
+                    Queste includono: elettronica, elettrotecnica, sistemi automatici, tpsee e fisica.
+                    Rispondi con un italiano tecnico preciso, accurato e comprensibile da tutti (bambini inclusi) usando risorse online accademiche (possibilmente non Wikipedia), ma soprattutto e prevalentemente le fonti (hanno la priorità rispetto a fonti online) del seguente contesto:
+
+                    Contesto: {context}
+
+                    Domanda: {question}
+
+                    Risposta:
+                    """
+                    }],
+                    "temperature": 0.3,
+                    "max_tokens": 1300
+                }
+            )
+            return response.json()["choices"][0]["message"]["content"].strip()
     except Exception as e:
-        logging.error(f"❌ Errore nella GET /query: {str(e)}")
-        raise HTTPException(500, detail="Errore interno del server")
-
-@app.post("/chat", response_model=ChatResponse)
-async def chat_session(
-    request: ChatRequest,
-    session_id: Optional[str] = Cookie(None),
-    response: Response = None
-):
-    try:
-        current_session = session_id if session_id in app.sessions else None
-        if not current_session:
-            session_id = str(uuid.uuid4())
-            app.sessions[session_id] = {"messages": [], "last_active": time.time()}
-        response.set_cookie("session_id", session_id, httponly=True, max_age=1800)
-        app.sessions[session_id]["last_active"] = time.time()
-        last_message = next((m for m in reversed(request.messages) if m.role == "user"), None)
-        if not last_message:
-            raise HTTPException(400, "Nessuna domanda valida nella richiesta")
-        rag_response = await execute_rag_query(last_message.content)
-        return ChatResponse(
-            session_id=session_id,
-            reply=rag_response["answer"],
-            chunks=rag_response["chunks"],
-            images=rag_response["images"]
-        )
-    except Exception as e:
-        logging.error(f"❌ Errore durante la chat: {str(e)}")
-        raise HTTPException(500, detail=str(e))
-
-@app.get("/health")
-async def health_check():
-    return {
-        "status": "ok",
-        "weaviate": app.weaviate_client.is_ready(),
-        "redis": await app.redis_client.ping(),
-        "sessions_active": len(app.sessions),
-        "version": "2.0.0"
-    }
-
-@app.get("/")
-async def root():
-    return {
-        "status": "ok",
-        "message": "BreadBot AI API is running",
-        "version": "2.0.0"
-    }
+        logging.error(f"❌ Errore generazione risposta: {str(e)}")
+        return "Impossibile generare una risposta al momento."
 
 # --- RAG QUERY CORE ---
-
 async def execute_rag_query(query: str, k: int = 5):
     """Funzione RAG per eseguire query ibride testuali e immagini"""
     try:
@@ -237,6 +225,15 @@ async def execute_rag_query(query: str, k: int = 5):
             return_properties=["filename", "url", "description"]
         ).objects
 
+        # LOGGING e RISULTATI ( valutare se rimuovere in produzione )
+        logging.info(f"Recuperati {len(chunks)} chunks da Weaviate")
+        for i, chunk in enumerate(chunks):
+            logging.info(f"Chunk {i}: {chunk.properties}")
+        logging.info(f"Recuperate {len(images)} immagini da Weaviate")
+        for i, img in enumerate(images):
+            logging.info(f"Immagine {i}: {img.properties}")
+
+        # BUILD CONTEXT E GENERA RISPOSTA
         context = build_context(chunks, images)
         answer = await generate_answer(context, query)
         return {
@@ -244,50 +241,75 @@ async def execute_rag_query(query: str, k: int = 5):
             "chunks": [RAGChunk(**obj.properties) for obj in chunks],
             "images": [RAGImageInfo(**img.properties) for img in images]
         }
+    except weaviate.exceptions.WeaviateQueryException as e:
+        logging.error(f"❌ Errore query Weaviate: {str(e)}")
+        raise HTTPException(500, detail="Errore durante la query al database vettoriale")
     except Exception as e:
-        logging.error(f"❌ Errore durante la query RAG: {str(e)}")
-        raise
+        logging.error(f"❌ Errore generico in RAG: {str(e)}")
+        raise HTTPException(500, detail="Errore interno del server durante l'esecuzione della query RAG")
 
-def build_context(chunks, images):
-    context = "## Fonti tecniche:\n"
-    context += "\n".join([f"[{chunk.source or 'N/D'}] {chunk.text}" for chunk in chunks])
-    context += "\n\n## Immagini rilevanti:\n"
-    context += "\n".join([f"- {img.description} ({img.url})" for img in images])
-    return context
+# --- FINE FUNZIONI DI SUPPORTO ---
 
-async def generate_answer(context: str, question: str) -> str:
+
+
+# --- ENDPOINTS ---
+
+@app.get("/")
+async def root():
+    return {
+        "status": "ok",
+        "message": "BreadBot AI API is running",
+        "version": "4.0.0"
+    }
+
+@app.get("/health")
+async def health_check():
+    return {
+        "status": "ok",
+        "weaviate": app.weaviate_client.is_ready(),
+        "redis": await app.redis_client.ping(),
+        "sessions_active": len(app.sessions),
+        "version": "4.0.0"
+    }
+
+@app.get("/query")
+async def query_get(q: str = Query(..., min_length=3, max_length=500)):
+    """Endpoint GET per domande singole (senza memoria di sessione)."""
     try:
-        async with httpx.AsyncClient(timeout=30) as client:
-            response = await client.post(
-                "https://openrouter.ai/api/v1/chat/completions",
-                headers={
-                    "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
-                    "HTTP-Referer": os.getenv("SITE_URL", "https://breadbot-ai.com"),
-                    "X-Title": "BreadBot AI"
-                },
-                json={
-                    "model": os.getenv("LLM_MODEL", "mistralai/mistral-7b-instruct:free"),
-                    "messages": [{
-                        "role": "user",
-                        "content": f"""
-Sei un esperto di elettronica, ti occupi di assistenza allo studio delle principali materie di indirizzo delle scuole superiori italiane.
-Devi rispondere a domande tecniche su argomenti di elettronica e realizzazione di circuiti elettronici su BreadBoard e PCB.
-Le tue risposte devono essere basate su fonti tecniche aggiornate per usare anche i moderni sistemi di controllo ed elaborazione dati per sistemi automatici.
-Queste includono: elettronica, elettrotecnica, sistemi automatici, tpsee e fisica.
-Rispondi con un italiano tecnico preciso, accurato e comprensibile da tutti (bambini inclusi) usando risorse online accademiche (possibilmente non Wikipedia), ma soprattutto e prevalentemente le fonti (hanno la priorità rispetto a fonti online) del seguente contesto:
-
-Contesto: {context}
-
-Domanda: {question}
-
-Risposta:
-"""
-                    }],
-                    "temperature": 0.3,
-                    "max_tokens": 1300
-                }
-            )
-            return response.json()["choices"][0]["message"]["content"].strip()
+        rag_response = await execute_rag_query(q)
+        return {
+            "answer": rag_response["answer"],
+            "chunks": [chunk.dict() for chunk in rag_response["chunks"]],
+            "images": [img.dict() for img in rag_response["images"]]
+        }
     except Exception as e:
-        logging.error(f"❌ Errore generazione risposta: {str(e)}")
-        return "Impossibile generare una risposta al momento."
+        logging.error(f"❌ Errore nella GET /query: {str(e)}")
+        raise HTTPException(500, detail="Errore interno del server")
+
+@app.post("/chat", response_model=ChatResponse)
+async def chat_session(
+    request: ChatRequest,
+    session_id: Optional[str] = Cookie(None),
+    response: Response = None
+    ):
+    try:
+        current_session = session_id if session_id in app.sessions else None
+        if not current_session:
+            session_id = str(uuid.uuid4())
+            app.sessions[session_id] = {"messages": [], "last_active": time.time()}
+        response.set_cookie("session_id", session_id, httponly=True, max_age=1800)
+        app.sessions[session_id]["last_active"] = time.time()
+        last_message = next((m for m in reversed(request.messages) if m.role == "user"), None)
+        if not last_message:
+            raise HTTPException(400, "Nessuna domanda valida nella richiesta")
+        rag_response = await execute_rag_query(last_message.content)
+        return ChatResponse(
+            session_id=session_id,
+            reply=rag_response["answer"],
+            chunks=rag_response["chunks"],
+            images=rag_response["images"]
+        )
+    except Exception as e:
+        logging.error(f"❌ Errore durante la chat: {str(e)}")
+        raise HTTPException(500, detail=str(e))
+
