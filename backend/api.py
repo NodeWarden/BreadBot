@@ -152,12 +152,14 @@ def build_context(chunks, images):
 
 # --- GENERA RISPOSTA ---
 async def generate_answer(context: str, question: str) -> str:
+    api_key = os.getenv('OPENROUTER_API_KEY')
+    logging.info(f"OpenRouter API Key: {'Set' if api_key else 'Not_set'}")
     try:
         async with httpx.AsyncClient(timeout=30) as client:
             response = await client.post(
                 "https://openrouter.ai/api/v1/chat/completions",
                 headers={
-                    "Authorization": f"Bearer {os.getenv('OPENROUTER_API_KEY')}",
+                    "Authorization": f"Bearer {api_key}",
                     "HTTP-Referer": os.getenv("SITE_URL", "https://breadbot-ai.com"),
                     "X-Title": "BreadBot AI"
                 },
@@ -183,7 +185,11 @@ async def generate_answer(context: str, question: str) -> str:
                     "max_tokens": 1300
                 }
             )
+            response.raise_for_status()
             return response.json()["choices"][0]["message"]["content"].strip()
+    except httpx.HTTPStatusError as e:
+        logging.error(f"❌ Errore HTTP OpenRouter: {e.response.status_code} - {e.response.text}")
+        return f"Errore di autenticazione con OpenRouter: {e.response.text}"
     except Exception as e:
         logging.error(f"❌ Errore generazione risposta: {str(e)}")
         return "Impossibile generare una risposta al momento."
@@ -279,8 +285,8 @@ async def query_get(q: str = Query(..., min_length=3, max_length=500)):
         rag_response = await execute_rag_query(q)
         return {
             "answer": rag_response["answer"],
-            "chunks": [chunk.dict() for chunk in rag_response["chunks"]],
-            "images": [img.dict() for img in rag_response["images"]]
+            "chunks": [chunk.model_dump() for chunk in rag_response["chunks"]],
+            "images": [img.model_dump() for img in rag_response["images"]]
         }
     except Exception as e:
         logging.error(f"❌ Errore nella GET /query: {str(e)}")
@@ -308,7 +314,7 @@ async def chat_session(
             reply=rag_response["answer"],
             chunks=rag_response["chunks"],
             images=rag_response["images"]
-        )
+        ).model_dump()
     except Exception as e:
         logging.error(f"❌ Errore durante la chat: {str(e)}")
         raise HTTPException(500, detail=str(e))
